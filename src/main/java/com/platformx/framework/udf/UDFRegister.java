@@ -12,6 +12,7 @@ package com.platformx.framework.udf;
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
@@ -2760,7 +2761,7 @@ public class UDFRegister implements Serializable {
 							adjusted_dr_wt_avg = Precision.round((adjusted_dr_sumprod/total_cust),16); 
 							error = Precision.round((adjusted_dr_wt_avg - central_tendency_pd),8);
 							
-							if (index > 39999) {
+							if (index > 79999) {
 								logger.debug("Programs gonna break now due to too many iterations: " + r);
 								iteration = 1;
 								break;
@@ -2770,11 +2771,12 @@ public class UDFRegister implements Serializable {
 								nonValue = 1;
 								break;
 							}
-							if(error == 0 || (error < 0.000001 && error > -0.000001)) {
+							if(error == 0 || (error < 0.0000025 && error > -0.0000025)) {
 								break;
 							}
 							
 							r = Precision.round((r - factor), 4);
+						//	System.out.println("1st value,"+r+",factor,"+factor+",index,"+index+",error,"+error+",intercept,"+seed+",slope,"+beta+",pit pd,"+central_tendency_pd);
 							index++;
 							
 						}
@@ -2800,7 +2802,7 @@ public class UDFRegister implements Serializable {
 									adjusted_dr_wt_avg = Precision.round((adjusted_dr_sumprod/total_cust),16); 
 									error = Precision.round((adjusted_dr_wt_avg - central_tendency_pd),8);
 									
-									if (index > 19999) {
+									if (index > 79999) {
 										logger.debug("Programs gonna break now due to too many iterations: " + r);
 										break;
 									}
@@ -2808,11 +2810,12 @@ public class UDFRegister implements Serializable {
 										logger.debug("Programs gonna break now due to NaN : " + r);
 										break;
 									}
-									if(error == 0 || (error < 0.000001 && error > -0.000001)) {
+									if(error == 0 || (error < 0.0000025 && error > -0.0000025)) {
 										break;
 									}
 									
 									r = Precision.round((r + factor), 4);
+							//		System.out.println("2nd r value,"+r+",factor,"+factor+",index,"+index+",error,"+error+",intercept,"+seed+",slope,"+beta+",pit pd,"+central_tendency_pd);
 									index++;
 							}
 						}
@@ -2823,136 +2826,143 @@ public class UDFRegister implements Serializable {
 				
 
 				// Alpha - PD Optimized Default Rate (when the direction of alpha movement is not known) - Replica of alpha3 with 5 decimals
-				sqlContext.udf().register("alpha4", new UDF5<Double, Double, WrappedArray<Double>, WrappedArray<Double>, Double, Double>() {
+				sqlContext.udf().register("alpha4",
+						new UDF5<Double, Double, WrappedArray<Double>, WrappedArray<Double>, Double, Double>() {
 
-					/** */
-					private static final long serialVersionUID = 1L;
+							/** */
+							private static final long serialVersionUID = 1L;
 
-					@Override
-					public Double call(Double seed, Double beta, WrappedArray<Double> wLogDefault, WrappedArray<Double> wNumCust, Double central_tendency_pd) throws Exception {
+							@Override
+							public Double call(Double seed, Double beta, WrappedArray<Double> wLogDefault,
+									WrappedArray<Double> wNumCust, Double central_tendency_pd) throws Exception {
 
-						double r = seed;
-						int index = 0;
-						int n = wLogDefault.length();
-						int iteration = 0;
-						int nonValue = 0;
-						
-						Object b[] = new Object[wLogDefault.length()];
-						wLogDefault.copyToArray(b);
-						Object c[] = new Object[wNumCust.length()];
-						wNumCust.copyToArray(c);
-						
-						double[] logDef = new double[n];
-						double[] numCust = new double[n];
-						
-						double[] adjusted_ln_odds = new double[n];
-						double[] calibrated_ttc = new double[n];
-						double[] adjusted_sum_product = new double[n];
-						
-						double adjusted_dr_sumprod = 0.0;
-						//double adjusted_dr_wt_avg= 0.0;
-						//double total_cust= 0.0;
-						
-						double error = 0.0;
-						double factor = 0.00001;
-						
-						for (int i = 0; i < b.length; i++) {
-							Object object = b[i];
-							String string = object.toString();
-							double dub = Precision.round(Double.valueOf(string).doubleValue(),16);
-							logDef[index] = dub;
-							
-							Object object1 = c[i];
-							String string1 = object1.toString();
-							double dub1 = Precision.round(Double.valueOf(string1).doubleValue(),16);
-							numCust[index] = dub1;
-							
-							++index;
-						}
-						
-						index = 0;
-						
-						while(true) {
-							adjusted_dr_sumprod = 0.0;
-							//total_cust = 0.0;
-							
-							for(int i=0; i<n; i++) {
-								
-								adjusted_ln_odds[i] = Precision.round((r + beta * logDef[i]),16);
-								calibrated_ttc[i] = Precision.round((1 / (1 + Math.exp(-adjusted_ln_odds[i]))),16);
-								adjusted_sum_product[i] = Precision.round((numCust[i] * calibrated_ttc[i]),16);
-								adjusted_dr_sumprod = Precision.round((adjusted_dr_sumprod + adjusted_sum_product[i]),16); 
-								//total_cust = Precision.round((total_cust + numCust[i]),0); 
-								
-							}
-							
-							//adjusted_dr_wt_avg = Precision.round((adjusted_dr_sumprod/total_cust),16); 
-							//error = Precision.round((adjusted_dr_wt_avg - central_tendency_pd),8);
-							error = Precision.round((adjusted_dr_sumprod - central_tendency_pd),8);
-							//System.out.println("for r = " + r + " error is " + error);
-							
-							if (index > 399999) {
-								logger.debug("Programs gonna break now due to too many iterations: " + r);
-								iteration = 1;
-								break;
-							}
-							if (Double.isNaN(r)) {
-								logger.debug("Programs gonna break now due to NaN : " + r);
-								nonValue = 1;
-								break;
-							}
-							if(error == 0 || (error < 0.000001 && error > -0.000001)) {
-								break;
-							}
-							
-							r = Precision.round((r - factor), 5);
-							index++;
-							
-						}
-						
-							if(iteration == 1 || nonValue == 1) {
+								double r = seed;
+								int index = 0;
+								int n = wLogDefault.length();
+								int iteration = 0;
+								int nonValue = 0;
+
+								Object b[] = new Object[wLogDefault.length()];
+								wLogDefault.copyToArray(b);
+								Object c[] = new Object[wNumCust.length()];
+								wNumCust.copyToArray(c);
+
+								double[] logDef = new double[n];
+								double[] numCust = new double[n];
+
+								double[] adjusted_ln_odds = new double[n];
+								double[] calibrated_ttc = new double[n];
+								double[] adjusted_sum_product = new double[n];
+
+								double adjusted_dr_sumprod = 0.0;
+								// double adjusted_dr_wt_avg= 0.0;
+								// double total_cust= 0.0;
+
+								double error = 0.0;
+								double factor = 0.00001;
+
+								for (int i = 0; i < b.length; i++) {
+									Object object = b[i];
+									String string = object.toString();
+									double dub = Precision.round(Double.valueOf(string).doubleValue(), 16);
+									logDef[index] = dub;
+
+									Object object1 = c[i];
+									String string1 = object1.toString();
+									double dub1 = Precision.round(Double.valueOf(string1).doubleValue(), 16);
+									numCust[index] = dub1;
+
+									++index;
+								}
+
 								index = 0;
-								r = seed;
-								
-								while(true) {
+
+								while (true) {
 									adjusted_dr_sumprod = 0.0;
-									//total_cust = 0.0;
-									
-									for(int i=0; i<n; i++) {
-										
-										adjusted_ln_odds[i] = Precision.round((r + beta * logDef[i]),16);
-										calibrated_ttc[i] = Precision.round((1 / (1 + Math.exp(-adjusted_ln_odds[i]))),16);
-										adjusted_sum_product[i] = Precision.round((numCust[i] * calibrated_ttc[i]),16);
-										adjusted_dr_sumprod = Precision.round((adjusted_dr_sumprod + adjusted_sum_product[i]),16); 
-										//total_cust = Precision.round((total_cust + numCust[i]),0); 
-										
+									// total_cust = 0.0;
+
+									for (int i = 0; i < n; i++) {
+
+										adjusted_ln_odds[i] = Precision.round((r + beta * logDef[i]), 16);
+										calibrated_ttc[i] = Precision.round((1 / (1 + Math.exp(-adjusted_ln_odds[i]))),
+												16);
+										adjusted_sum_product[i] = Precision.round((numCust[i] * calibrated_ttc[i]), 16);
+										adjusted_dr_sumprod = Precision
+												.round((adjusted_dr_sumprod + adjusted_sum_product[i]), 16);
+										// total_cust = Precision.round((total_cust + numCust[i]),0);
+
 									}
-									
-									//adjusted_dr_wt_avg = Precision.round((adjusted_dr_sumprod/total_cust),16); 
-									//error = Precision.round((adjusted_dr_wt_avg - central_tendency_pd),8);
-									error = Precision.round((adjusted_dr_sumprod - central_tendency_pd),8);
-									//System.out.println("for r = " + r + " error is " + error);
-									
-									if (index > 199999) {
+
+									// adjusted_dr_wt_avg = Precision.round((adjusted_dr_sumprod/total_cust),16);
+									// error = Precision.round((adjusted_dr_wt_avg - central_tendency_pd),8);
+									error = Precision.round((adjusted_dr_sumprod - central_tendency_pd), 8);
+									// System.out.println("for r = " + r + " error is " + error);
+
+									if (index > 399999) {
 										logger.debug("Programs gonna break now due to too many iterations: " + r);
+										iteration = 1;
 										break;
 									}
 									if (Double.isNaN(r)) {
 										logger.debug("Programs gonna break now due to NaN : " + r);
+										nonValue = 1;
 										break;
 									}
-									if(error == 0 || (error < 0.000001 && error > -0.000001)) {
+									if (error == 0 || (error < 0.0000005 && error > -0.0000005)) {
 										break;
 									}
-									
-									r = Precision.round((r + factor), 5);
+
+									r = Precision.round((r - factor), 5);
 									index++;
+
+								}
+
+								if (iteration == 1 || nonValue == 1) {
+									index = 0;
+									r = seed;
+
+									while (true) {
+										adjusted_dr_sumprod = 0.0;
+										// total_cust = 0.0;
+
+										for (int i = 0; i < n; i++) {
+
+											adjusted_ln_odds[i] = Precision.round((r + beta * logDef[i]), 16);
+											calibrated_ttc[i] = Precision
+													.round((1 / (1 + Math.exp(-adjusted_ln_odds[i]))), 16);
+											adjusted_sum_product[i] = Precision.round((numCust[i] * calibrated_ttc[i]),
+													16);
+											adjusted_dr_sumprod = Precision
+													.round((adjusted_dr_sumprod + adjusted_sum_product[i]), 16);
+											// total_cust = Precision.round((total_cust + numCust[i]),0);
+
+										}
+
+										// adjusted_dr_wt_avg = Precision.round((adjusted_dr_sumprod/total_cust),16);
+										// error = Precision.round((adjusted_dr_wt_avg - central_tendency_pd),8);
+										error = Precision.round((adjusted_dr_sumprod - central_tendency_pd), 8);
+										// System.out.println("for r = " + r + " error is " + error);
+
+										if (index > 399999) {
+											logger.debug("Programs gonna break now due to too many iterations: " + r);
+											break;
+										}
+										if (Double.isNaN(r)) {
+											logger.debug("Programs gonna break now due to NaN : " + r);
+											break;
+										}
+										if (error == 0 || (error < 0.0000005 && error > -0.0000005)) {
+											break;
+										}
+
+										r = Precision.round((r + factor), 5);
+										index++;
+									}
+								}
+                           
+								return r;
 							}
-						}
-						
-						return r;
-					}
-				}, DataTypes.DoubleType);
+						}, DataTypes.DoubleType);
 				
 				// Matrix Multiplication
 				sqlContext.udf().register("mMult", new UDF2<String, WrappedArray<Double>, Double>() {
@@ -3665,59 +3675,55 @@ public class UDFRegister implements Serializable {
 
 					@Override
 					public Double call(WrappedArray<String> wCashflow ) throws Exception {
-						
-						String b[] = new String[wCashflow.length()];
-						wCashflow.copyToArray(b);
-						
-						Date[]  cashflowDate = new Date[b.length];
-						Double[] install_amount = new Double[b.length];
-						Double[] principal_rcy = new Double[b.length];
-						Double[] accrued_rcy = new Double[b.length];
-						Double[] interest_suspense = new Double[b.length];
-						Double[] eir = new Double[b.length];
-						int[] counter = new int[b.length];
-						Double[] ntbEad = new Double[b.length];
-						
-						
-						int index = 0;
-						
-						for (int i = 0; i < b.length; i++) {
-							String[] splitArray = b[i].split("\\|");														
-							cashflowDate[index] = new SimpleDateFormat("yyyy-MM-dd").parse(splitArray[0]);
-							install_amount[index] = Double.valueOf(splitArray[1]).doubleValue();
-							principal_rcy[index] = Double.valueOf(splitArray[2]).doubleValue();
-							accrued_rcy[index] = Double.valueOf(splitArray[3]).doubleValue();
-							interest_suspense[index] = Double.valueOf(splitArray[4]).doubleValue();
-							eir[index] = Double.valueOf(splitArray[5]).doubleValue();
-							counter[index] = Integer.parseInt(splitArray[6]);
-							
-							++index;
-						}
-					
-					
-						
-						for(int i=0; i < b.length; i++) {
-							if(i == 0 ) {
-								ntbEad[i]= principal_rcy[i]+accrued_rcy[i]-interest_suspense[i];
-							}
-							
-							else if(i == 1 ) {
-								ntbEad[i]= principal_rcy[i]+principal_rcy[i] *(eir[i]/12) - install_amount[i];
-							}
-							
-							else {
-							
-								ntbEad[i] = ntbEad[i-1] + ntbEad[i-1] *(eir[i]/12) - install_amount[i]  ;
-								System.out.println("R = " + ntbEad[i]);
-								
-								}
-						}
-									
-						
-						Double result = ntbEad[index-1];
-						
-						return result;
-					}
+					      String[] b = new String[wCashflow.length()];
+					      wCashflow.copyToArray(b);
+					      Date[] cashflowDate = new Date[b.length];
+					      Date[] lastDate = new Date[b.length];
+					      Double[] install_amount = new Double[b.length];
+					      Double[] principal_rcy = new Double[b.length];
+					      Double[] accrued_rcy = new Double[b.length];
+					      Double[] interest_suspense = new Double[b.length];
+					      Double[] eir = new Double[b.length];
+					      int[] counter = new int[b.length];
+					      Double[] ntbEad = new Double[b.length];
+					      int index = 0;
+
+					      int i;
+					      for(i = 0; i < b.length; ++i) {
+					         String[] splitArray = b[i].split("\\|");
+					         cashflowDate[index] = (new SimpleDateFormat("yyyy-MM-dd")).parse(splitArray[0]);
+					         lastDate[index] = (new SimpleDateFormat("yyyy-MM-dd")).parse(splitArray[1]);
+					         install_amount[index] = Double.valueOf(splitArray[2]);
+					         principal_rcy[index] = Double.valueOf(splitArray[3]);
+					         accrued_rcy[index] = Double.valueOf(splitArray[4]);
+					         interest_suspense[index] = Double.valueOf(splitArray[5]);
+					         eir[index] = Double.valueOf(splitArray[6]);
+					         counter[index] = Integer.parseInt(splitArray[7]);
+					         ++index;
+					      }
+
+					      for(i = 0; i < b.length; ++i) {
+					         if (i == 0) {
+					            ntbEad[i] = principal_rcy[i] + accrued_rcy[i] - interest_suspense[i];
+					         } else {
+					            long difference_In_Time;
+					            long difference_In_Days;
+					            if (i == 1) {
+					               difference_In_Time = cashflowDate[i].getTime() - lastDate[i].getTime();
+					               difference_In_Days = difference_In_Time / 86400000L;
+					               ntbEad[i] = principal_rcy[i] - install_amount[i] + principal_rcy[i] * (eir[i] / 365.0D) * (double)difference_In_Days;
+					            } else {
+					               difference_In_Time = cashflowDate[i].getTime() - cashflowDate[i - 1].getTime();
+					               difference_In_Days = difference_In_Time / 86400000L;
+					               ntbEad[i] = ntbEad[i - 1] - install_amount[i] + ntbEad[i - 1] * (eir[i] / 365.0D) * (double)difference_In_Days;
+					               System.out.println("R = " + ntbEad[i]);
+					            }
+					         }
+					      }
+
+					      Double result = ntbEad[index - 1];
+					      return result;
+					      }
 				}, DataTypes.DoubleType);			
 				
 				
@@ -3893,14 +3899,796 @@ public class UDFRegister implements Serializable {
 			            return finalResult;
 					}								
 					
+				}, DataTypes.DoubleType);	
+				
+				
+				// Opening Cashflow Interest Calculation (NTB Predicted_cashflow)
+				sqlContext.udf().register("predictedInterestCashflow", new UDF1<WrappedArray<String>, Double >() {
+
+					/** */
+					private static final long serialVersionUID = 1L;
+
+					@Override
+					public Double call(WrappedArray<String> wCashflow ) throws Exception {
+						
+						String b[] = new String[wCashflow.length()];
+						wCashflow.copyToArray(b);
+											
+
+						String[]  instrumentId = new String[b.length];
+						Date[]  reportingDate = new Date[b.length];
+						Double[] outstanding = new Double[b.length];
+						Double[] installment = new Double[b.length];
+						int[] installmentCount = new int[b.length];
+						Double[] interestCashflow = new Double[b.length];
+						Double[] eir = new Double[b.length];
+						Double[] princCashflow = new Double[b.length]; 
+						int index = 0;
+						
+						for (int i = 0; i < b.length; i++) {
+							String[] splitArray = b[i].split("\\|");	
+							instrumentId[index]= splitArray[0];
+							reportingDate[index] = new SimpleDateFormat("yyyy-MM-dd").parse(splitArray[1]);
+							outstanding[index] = Double.valueOf(splitArray[2]).doubleValue();
+							installment[index] = Double.valueOf(splitArray[3]).doubleValue();
+							installmentCount[index] = Integer.parseInt(splitArray[4]);
+							interestCashflow[index] = Double.valueOf(splitArray[5]).doubleValue();
+							eir[index] = Double.valueOf(splitArray[6]).doubleValue();
+							++index;
+						}
+					
+					
+						
+						for(int i=0; i < b.length; i++) {
+							if(i == 0 ) {
+								 
+								//interestCashflow[i]= (outstanding[i] * eir[i] / 12);
+								interestCashflow[i]= Math.min(installment[i],(outstanding[i] * eir[i] / 12));
+								//princCashflow[i]=	installment[i] -interestCashflow[i];	 
+								princCashflow[i]=Math.min((outstanding[i]),(installment[i]-interestCashflow[i]));
+							}
+							else {
+								double princTemp=0d;
+								for(int j=0; j < i; j++) {
+									princTemp=princTemp+princCashflow[j];
+								}
+							
+								interestCashflow[i] =  Math.min(installment[i],((outstanding[i]- princTemp)*( eir[i] / 12)));
+								princCashflow[i]=Math.min((outstanding[i]-princTemp),(installment[i]-interestCashflow[i]));
+								
+							 
+						}
+						
+					}				
+						
+						Double result = interestCashflow[index-1];
+						
+						return result;
+					}
 				}, DataTypes.DoubleType);		
 				
-	}
+	
+	// Opening Cashflow Principal Calculation (NTB Predicted_cashflow)
+	sqlContext.udf().register("predictedPrincipalCashflow", new UDF1<WrappedArray<String>, Double >() {
+
+		/** */
+		private static final long serialVersionUID = 1L;
+
+		@Override
+		public Double call(WrappedArray<String> wCashflow ) throws Exception {
+			
+			String b[] = new String[wCashflow.length()];
+			wCashflow.copyToArray(b);
+			
+
+			String[]  instrumentId = new String[b.length];
+			Date[]  reportingDate = new Date[b.length];
+			Double[] outstanding = new Double[b.length];
+			Double[] installment = new Double[b.length];
+			int[] installmentCount = new int[b.length];
+			Double[] interestCashflow = new Double[b.length];
+			Double[] eir = new Double[b.length];
+			
+			Double[] princCashflow = new Double[b.length]; 
+			int index = 0;
+			
+			for (int i = 0; i < b.length; i++) {
+				String[] splitArray = b[i].split("\\|");			
+				instrumentId[index]= splitArray[0];
+				reportingDate[index] = new SimpleDateFormat("yyyy-MM-dd").parse(splitArray[1]);
+				outstanding[index] = Double.valueOf(splitArray[2]).doubleValue();
+				installment[index] = Double.valueOf(splitArray[3]).doubleValue();
+				installmentCount[index] = Integer.parseInt(splitArray[4]);
+				interestCashflow[index] = Double.valueOf(splitArray[5]).doubleValue();
+				eir[index] = Double.valueOf(splitArray[6]).doubleValue();
+				++index;
+			}
+		
+		
+			
+			for(int i=0; i < b.length; i++) {
+				if(i == 0 ) {
+					 
+					//interestCashflow[i]= (outstanding[i] * eir[i] / 12);
+					interestCashflow[i]= Math.min(installment[i],(outstanding[i] * eir[i] / 12));
+					//princCashflow[i]=	installment[i] -interestCashflow[i];	 
+					princCashflow[i]=Math.min((outstanding[i]),(installment[i]-interestCashflow[i]));	 
+				}
+				else {
+					double princTemp=0d;
+					for(int j=0; j < i; j++) {
+						princTemp=princTemp+princCashflow[j];
+					}
+				
+					interestCashflow[i] =  Math.min(installment[i],((outstanding[i]- princTemp)*( eir[i] / 12)));
+					princCashflow[i]=Math.min((outstanding[i]-princTemp),(installment[i]-interestCashflow[i]));
+					
+				 
+			}
+				
+		}				
+			
+			Double result = princCashflow[index-1];
+			 
+			return result;
+		}
+	}, DataTypes.DoubleType);		
+	
+	
+	
+	// Alpha - PD Optimized Default Rate (when the direction of alpha movement is not known) - Replica of alpha3 with 5 decimals for AJMAN Bank 
+	sqlContext.udf().register("alpha5",
+			new UDF5<Double, Double, WrappedArray<Double>, WrappedArray<Double>, Double, Double>() {
+
+				/** */
+				private static final long serialVersionUID = 1L;
+
+				@Override
+				public Double call(Double seed, Double beta, WrappedArray<Double> wLogDefault,
+						WrappedArray<Double> wNumCust, Double central_tendency_pd) throws Exception {
+
+					double r = seed;
+					int index = 0;
+					int n = wLogDefault.length();
+					int iteration = 0;
+					int nonValue = 0;
+
+					Object b[] = new Object[wLogDefault.length()];
+					wLogDefault.copyToArray(b);
+					Object c[] = new Object[wNumCust.length()];
+					wNumCust.copyToArray(c);
+
+					double[] logDef = new double[n];
+					double[] numCust = new double[n];
+
+					double[] adjusted_ln_odds = new double[n];
+					double[] calibrated_ttc = new double[n];
+					double[] adjusted_sum_product = new double[n];
+
+					double adjusted_dr_sumprod = 0.0;
+					// double adjusted_dr_wt_avg= 0.0;
+					// double total_cust= 0.0;
+
+					double error = 0.0;
+					double factor = 0.00001;
+
+					for (int i = 0; i < b.length; i++) {
+						Object object = b[i];
+						String string = object.toString();
+						double dub = Precision.round(Double.valueOf(string).doubleValue(), 16);
+						logDef[index] = dub;
+
+						Object object1 = c[i];
+						String string1 = object1.toString();
+						double dub1 = Precision.round(Double.valueOf(string1).doubleValue(), 16);
+						numCust[index] = dub1;
+
+						++index;
+					}
+
+					index = 0;
+
+					while (true) {
+						adjusted_dr_sumprod = 0.0;
+						// total_cust = 0.0;
+
+						for (int i = 0; i < n; i++) {
+
+							adjusted_ln_odds[i] = Precision.round((r + beta * numCust[i]), 16);
+							calibrated_ttc[i] = Precision.round((Math.exp(adjusted_ln_odds[i]) / (1 + Math.exp(adjusted_ln_odds[i]))),
+									16);
+							adjusted_sum_product[i] = Precision.round((logDef[i] * calibrated_ttc[i]), 16);
+							adjusted_dr_sumprod = Precision
+									.round((adjusted_dr_sumprod + adjusted_sum_product[i]), 16);
+							// total_cust = Precision.round((total_cust + numCust[i]),0);
+							/*
+							 * System.out.println("for numCust["+i+"] = " + numCust[i] );
+							 * System.out.println("for logDef["+i+"] = " + logDef[i] );
+							 * System.out.println("for numCust["+i+"] = " + numCust[i] );
+							 */
+
+						}
+
+						// adjusted_dr_wt_avg = Precision.round((adjusted_dr_sumprod/total_cust),16);
+						// error = Precision.round((adjusted_dr_wt_avg - central_tendency_pd),8);
+						error = Precision.round((adjusted_dr_sumprod - central_tendency_pd), 8);
+						// System.out.println("for r = " + r + " error is " + error);
+
+						if (index > 999999) {
+							logger.debug("Programs gonna break now due to too many iterations: " + r);
+							iteration = 1;
+							break;
+						}
+						if (Double.isNaN(r)) {
+							logger.debug("Programs gonna break now due to NaN : " + r);
+							nonValue = 1;
+							break;
+						}
+						if (error == 0 || (error < 0.000001 && error > -0.000001)) {
+							break;
+						}
+
+						r = Precision.round((r + factor), 5);
+						index++;
+
+					}
+
+					if (iteration == 1 || nonValue == 1) {
+						index = 0;
+						r = seed;
+
+						while (true) {
+							adjusted_dr_sumprod = 0.0;
+							// total_cust = 0.0;
+
+							for (int i = 0; i < n; i++) {
+
+								adjusted_ln_odds[i] = Precision.round((r + beta * numCust[i]), 16);
+								calibrated_ttc[i] = Precision.round((Math.exp(adjusted_ln_odds[i]) / (1 + Math.exp(adjusted_ln_odds[i]))),
+										16);
+								adjusted_sum_product[i] = Precision.round((logDef[i] * calibrated_ttc[i]), 16);
+								adjusted_dr_sumprod = Precision
+										.round((adjusted_dr_sumprod + adjusted_sum_product[i]), 16);
+								// total_cust = Precision.round((total_cust + numCust[i]),0);
+
+							}
+
+							// adjusted_dr_wt_avg = Precision.round((adjusted_dr_sumprod/total_cust),16);
+							// error = Precision.round((adjusted_dr_wt_avg - central_tendency_pd),8);
+							error = Precision.round((adjusted_dr_sumprod - central_tendency_pd), 8);
+							// System.out.println("for r = " + r + " error is " + error);
+
+							if (index > 999999) {
+								logger.debug("Programs gonna break now due to too many iterations: " + r);
+								break;
+							}
+							if (Double.isNaN(r)) {
+								logger.debug("Programs gonna break now due to NaN : " + r);
+								break;
+							}
+							if (error == 0 || (error < 0.000001 && error > -0.000001)) {
+								break;
+							}
+
+							r = Precision.round((r - factor), 5);
+							index++;
+						}
+					}
+               
+					return r;
+				}
+			}, DataTypes.DoubleType);
+	
+	// Logit PD - predicted_pd  Calculation (AJMAN) - AJMAN BANK
+	sqlContext.udf().register("pdLogit", new UDF1<WrappedArray<String>, Double>() {
+		/** */
+		private static final long serialVersionUID = 1L;
+		@Override
+		public Double call(WrappedArray<String> wPreceding ) throws Exception {
+
+			String b[] = new String[wPreceding.length()];
+			wPreceding.copyToArray(b);
+			Double[] pdInterim = new Double[b.length];
+			Date[]  predictionYear = new Date[b.length];
+			Double[] defaultRate = new Double[b.length];
+			Double[] logitDefaultRate = new Double[b.length];
+			Double[] logitDefaultRateDiff = new Double[b.length];
+			Double[] predictedLogitFD = new Double[b.length];
+
+			int index = 0;
+			int j=0;
+			for (int i = 0; i < b.length; i++) {
+				String[] splitArray = b[i].split("\\|");	
+				predictionYear[index] = new SimpleDateFormat("yyyy-MM-dd").parse(splitArray[0]);
+				defaultRate[index] = Double.valueOf(splitArray[1]).doubleValue();
+				logitDefaultRate[index] = Double.valueOf(splitArray[2]).doubleValue();
+				logitDefaultRateDiff[index] = Double.valueOf(splitArray[3]).doubleValue();
+				predictedLogitFD[index] = Double.valueOf(splitArray[4]).doubleValue();
+				++index;
+			}
+			boolean flagJRun= true;
+			for(int i=0; i < b.length; i++) {
+					if((logitDefaultRateDiff[i] == null || logitDefaultRateDiff[i]==0) && flagJRun ==true  ) {
+						j=i;
+					}
+					else {
+						flagJRun= false;
+						if(j==(i-1) 	) {
+							pdInterim[i] =  logitDefaultRate[j] +  predictedLogitFD[i];
+						//	System.out.println("J=" +j+" logitDefaultRateDiff = " + logitDefaultRate[j]+",cashflowDate = " + predictionYear[i]);
+						}
+						else {
+							pdInterim[i] = pdInterim[i-1]+ predictedLogitFD[i];
+						}
+					}
+			}
+
+			Double result = pdInterim[index-1];
+			return result;
+		}
+	}, DataTypes.DoubleType);
+	
+	
+	// add_months function to replicate spark 2.4 end of month logic
+	sqlContext.udf().register("add_months",
+			new UDF2<String, Object,String>() {						
+				private static final long serialVersionUID = 1L;
+				@Override
+				public String call(String arg0, Object arg1) throws Exception {
+					// TODO Auto-generated method stub
+					try {
+						Double myDouble = Double.parseDouble(arg1.toString());
+						Integer convertInt =myDouble.intValue();
+					SimpleDateFormat sdf =new SimpleDateFormat("yyyy-MM-dd");
+					sdf.setLenient(false);
+					Date dMod = sdf.parse(arg0);
+					Calendar cal = Calendar.getInstance();
+			        cal.setTime(dMod);
+			        boolean isLastDay = cal.get(Calendar.DATE) == cal.getActualMaximum(Calendar.DATE);
+			        cal.add(Calendar.MONTH,convertInt);
+			          if(isLastDay) {
+					         cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
+			          }
+			          Date dateAsObjAfterAMonth = cal.getTime() ;
+			        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+			    String dateAsObjAfterAMonthAsString = df.format(dateAsObjAfterAMonth);
+			    return dateAsObjAfterAMonthAsString ;
+					}
+					catch(Exception e) {
+						e.printStackTrace();
+						return null;
+						
+					}
+				}
+
+				
+			}, DataTypes.StringType);
+	
+	// Opening Survival PD Calculation (NBO Survival PD Factor)
+		sqlContext.udf().register("PDSurvivalFactor", new UDF1<WrappedArray<String>, Double >() {
+
+			/** */
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public Double call(WrappedArray<String> wPrediction ) throws Exception {
+			      String[] b = new String[wPrediction.length()];
+			      wPrediction.copyToArray(b);
+			      Double[] annual_pd = new Double[b.length];
+			      int[] year = new int[b.length];
+			      Double[] survival_pd = new Double[b.length];
+			      int index = 0;
+
+			      int i;
+			      for(i = 0; i < b.length; ++i) {
+			         Object object = b[i];
+			         String string = object.toString();
+			         String[] splitArray = b[i].split("\\|");
+			         annual_pd[index] = Double.valueOf(splitArray[0]);
+			         year[index] = Integer.parseInt(splitArray[1]);
+			         ++index;
+			      }
+
+			      for(i = 0; i < b.length; ++i) {
+			         if (i == 0) {
+			            survival_pd[i] =  annual_pd[i];
+			         } else {
+			              survival_pd[i] = survival_pd[i - 1] + (1- survival_pd[i-1]) *  annual_pd[i];
+			         }
+			      }
+			       
+			      Double result = survival_pd[index - 1];
+			     
+		          return result;
+			      }
+		}, DataTypes.DoubleType);			
+		
+		// Alpha - PD Optimized Default Rate (when the direction of alpha movement is not known) FOR NBO
+		sqlContext.udf().register("alpha6", new UDF5<Double, Double, WrappedArray<Double>, WrappedArray<Double>, Double, Double>() {
+
+			/** */
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public Double call(Double seed, Double beta, WrappedArray<Double> wLogDefault, WrappedArray<Double> wNumCust, Double central_tendency_pd) throws Exception {
+
+				double r = seed;
+				int index = 0;
+				int n = wLogDefault.length();
+				int iteration = 0;
+				int nonValue = 0;
+				
+				Object b[] = new Object[wLogDefault.length()];
+				wLogDefault.copyToArray(b);
+				Object c[] = new Object[wNumCust.length()];
+				wNumCust.copyToArray(c);
+				
+				double[] logDef = new double[n];
+				double[] numCust = new double[n];
+				
+				double[] adjusted_ln_odds = new double[n];
+				double[] calibrated_ttc = new double[n];
+				double[] adjusted_sum_product = new double[n];
+				
+				double adjusted_dr_sumprod = 0.0;
+				double adjusted_dr_wt_avg= 0.0;
+				double total_cust= 0.0;
+				
+				double error = 0.0;
+				double factor = 0.00001;
+				
+				for (int i = 0; i < b.length; i++) {
+					Object object = b[i];
+					String string = object.toString();
+					double dub = Precision.round(Double.valueOf(string).doubleValue(),16);
+					logDef[index] = dub;
+					
+					Object object1 = c[i];
+					String string1 = object1.toString();
+					double dub1 = Precision.round(Double.valueOf(string1).doubleValue(),16);
+					numCust[index] = dub1;
+					
+					++index;
+				}
+				
+				index = 0;
+				
+				while(true) {
+					adjusted_dr_sumprod = 0.0;
+					total_cust = 0.0;
+					
+					for(int i=0; i<n; i++) {
+						
+						adjusted_ln_odds[i] = Precision.round((r + beta * logDef[i]),16);
+						calibrated_ttc[i] = Precision.round((1 / (1 + Math.exp(-adjusted_ln_odds[i]))),16);
+						adjusted_sum_product[i] = Precision.round((numCust[i] * calibrated_ttc[i]),16);
+						adjusted_dr_sumprod = Precision.round((adjusted_dr_sumprod + adjusted_sum_product[i]),16); 
+						total_cust = Precision.round((total_cust + numCust[i]),0); 
+						
+					}
+					
+					adjusted_dr_wt_avg = Precision.round((adjusted_dr_sumprod/total_cust),16); 
+					error = Precision.round((adjusted_dr_wt_avg - central_tendency_pd),8);
+					
+					if (index > 299999) {
+						logger.debug("Programs gonna break now due to too many iterations: " + r);
+						iteration = 1;
+						break;
+					}
+					if (Double.isNaN(r)) {
+						logger.debug("Programs gonna break now due to NaN : " + r);
+						nonValue = 1;
+						break;
+					}
+					if(error == 0 || (error < 0.00000025 && error > -0.00000025)) {
+						break;
+					}
+					
+					r = Precision.round((r - factor), 7);
+					index++;
+					
+				}
+				
+					if(iteration == 1 || nonValue == 1) {
+						index = 0;
+						r = seed;
+						
+						while(true) {
+							adjusted_dr_sumprod = 0.0;
+							total_cust = 0.0;
+							
+							for(int i=0; i<n; i++) {
+								
+								adjusted_ln_odds[i] = Precision.round((r + beta * logDef[i]),16);
+								calibrated_ttc[i] = Precision.round((1 / (1 + Math.exp(-adjusted_ln_odds[i]))),16);
+								adjusted_sum_product[i] = Precision.round((numCust[i] * calibrated_ttc[i]),16);
+								adjusted_dr_sumprod = Precision.round((adjusted_dr_sumprod + adjusted_sum_product[i]),16); 
+								total_cust = Precision.round((total_cust + numCust[i]),0); 
+								
+							}
+							
+							adjusted_dr_wt_avg = Precision.round((adjusted_dr_sumprod/total_cust),16); 
+							error = Precision.round((adjusted_dr_wt_avg - central_tendency_pd),8);
+							
+							if (index > 299999) {
+								logger.debug("Programs gonna break now due to too many iterations: " + r);
+								break;
+							}
+							if (Double.isNaN(r)) {
+								logger.debug("Programs gonna break now due to NaN : " + r);
+								break;
+							}
+							if(error == 0 || (error < 0.00000025 && error > -0.00000025)) {
+								break;
+							}
+							
+							r = Precision.round((r + factor), 7);
+							index++;
+					}
+				}
+				
+				return r;
+			}
+		}, DataTypes.DoubleType);
+		
+		// Opening pdLogitDR Calculation (ADCB pdLogitDR)
+		sqlContext.udf().register("pdLogitDR", new UDF1<WrappedArray<String>, Double >() {
+
+			/** */
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public Double call(WrappedArray<String> wCashflow ) throws Exception {
+				
+				String b[] = new String[wCashflow.length()];
+				wCashflow.copyToArray(b);
+				
+				Date[]  cashflowDate = new Date[b.length];
+				String[] scenario = new String[b.length];
+				String[] factorCode = new String[b.length];
+				String[] factorDesc = new String[b.length];
+				int[] id = new int[b.length];
+				Double[] coefficient = new Double[b.length];
+				Double[] macro_economic_value = new Double[b.length];
+				Double[] prod = new Double[b.length];
+				double cum_sum =0.0;
+				
+				
+				int index = 0;
+				int max_id = 1;
+				
+				for (int i = 0; i < b.length; i++) {
+					String[] splitArray = b[i].split("\\|");														
+					cashflowDate[index] = new SimpleDateFormat("yyyy-MM-dd").parse(splitArray[0]);
+					scenario[index] = splitArray[1];
+					factorCode[index] = splitArray[2];
+					factorDesc[index] = splitArray[3];
+					id[index] = Integer.parseInt(splitArray[4]);
+					coefficient[index] = Double.valueOf(splitArray[5]).doubleValue();
+					macro_economic_value[index] = Double.valueOf(splitArray[6]).doubleValue();
+					
+					max_id = id[index]>max_id?id[index]:max_id;
+					++index;
+					
+				}
+			
+				Double [] array_cum_val= new Double[max_id+1];
+				int current_id =0;
+				Double result=0.0;
+				
+				for(int i=0; i < b.length; i++) {
+				//	if(id[i] == 1) {
+					if (current_id != id[i]) {
+						cum_sum=0;
+						current_id =id[i];
+					}
+					
+					if(i == 0 ) {
+							prod[i]=macro_economic_value[i]*coefficient[i];
+							cum_sum = prod[i];
+					}
+					else if (id[i]==2 && factorDesc[i].equalsIgnoreCase("logit_dr_2") ) {
+						prod[i]=macro_economic_value[i]*coefficient[i];
+						cum_sum= cum_sum + prod[i];
+					}
+					
+					else if (id[i]>1 && factorDesc[i].equalsIgnoreCase("logit_dr_1")){
+						prod[i]= (macro_economic_value[i]==0.0?array_cum_val[id[i]-1]:macro_economic_value[i])*coefficient[i];
+						cum_sum= cum_sum + prod[i];
+						
+						}
+					else if (id[i]>2 && factorDesc[i].equalsIgnoreCase("logit_dr_2")){
+						prod[i]= (macro_economic_value[i]==0.0?array_cum_val[id[i]-2]:macro_economic_value[i])*coefficient[i];
+						cum_sum= cum_sum + prod[i];
+						
+						}
+					else {
+						prod[i]= (macro_economic_value[i]==0.0?array_cum_val[id[i]-1]:macro_economic_value[i])*coefficient[i];
+						cum_sum= cum_sum + prod[i];
+						
+						}
+					//}
+					
+							
+					array_cum_val[id[i]] = cum_sum;
+					if (factorDesc[i].equalsIgnoreCase("logit_dr_1") ) {
+					result = array_cum_val[id[i] - 1];
+					}
+					else if (id[i]>2 && factorDesc[i].equalsIgnoreCase("logit_dr_2") ) {
+						result = array_cum_val[id[i] - 2];
+						}
+					else {
+						result = array_cum_val[id[i] - 1];
+					}
+				}
+							
+				 
+		          return result;
+				
+				
+			}
+		}, DataTypes.DoubleType);		
+		
+		
+		//Sum Product PD(Excel sum_prodcut)
+		sqlContext.udf().register("sum_product", new UDF1<WrappedArray<String>, Double >() {
+
+	        /** */
+	        private static final long serialVersionUID = 1L;
+
+	        @Override
+	        public Double call(WrappedArray<String> wCashflow ) throws Exception {
+	            
+	            String b[] = new String[wCashflow.length()];
+	            wCashflow.copyToArray(b);
+	            
+	            Double[] from_pit_pd = new Double[b.length];
+	            Double[] to_pit_pd = new Double[b.length];
+	            int[] from_rating = new int[b.length];
+	            int[] to_rating = new int[b.length];
+	            
+	            double sum_product = 0.0;
+	            double[] product = new double[b.length];
+			
+	            int index = 0;
+	            
+	            for (int i = 0; i < b.length; i++) {
+	                String[] splitArray = b[i].split("\\|");                                                        
+	            /*  cashflowDate[index] = new SimpleDateFormat("yyyy-MM-dd").parse(splitArray[0]);*/
+	                from_pit_pd[index] = Double.valueOf(splitArray[0]).doubleValue();
+	                to_pit_pd[index] = Double.valueOf(splitArray[1]).doubleValue();
+	                from_rating[index] = Integer.parseInt(splitArray[2]);
+	                to_rating[index] = Integer.parseInt(splitArray[3]);
+	                
+	                ++index;
+	            }
+	        
+	        
+	            
+	            for(int i=0; i < b.length; i++) {
+	            	  
+	            	product[i] = from_pit_pd[i] * to_pit_pd[i];
+	            	sum_product = sum_product + product[i]; 
+					
+	                
+	                     
+	            }
+	                        
+	            
+	            Double result = sum_product;
+	            
+	            return result;
+	        }
+	    }, DataTypes.DoubleType);
+		
+		
+		// Opening EAD Calculation (ADCB Cashflow_EAD)
+		sqlContext.udf().register("cashflowEad", new UDF1<WrappedArray<String>, Double>() {
+
+			/** */
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public Double call(WrappedArray<String> wCashflow) throws Exception {
+
+				String b[] = new String[wCashflow.length()];
+				wCashflow.copyToArray(b);
+
+				Date[] cashflowDate = new Date[b.length];
+				Double[] rate = new Double[b.length];
+				Double[] cashflow = new Double[b.length];
+				Double[] cashflowEad = new Double[b.length];
+
+				int index = 0;
+
+				for (int i = 0; i < b.length; i++) {
+					String[] splitArray = b[i].split("\\|");
+					cashflowDate[index] = new SimpleDateFormat("yyyy-MM-dd").parse(splitArray[0]);
+					rate[index] = Double.valueOf(splitArray[1]).doubleValue();
+					cashflow[index] = Double.valueOf(splitArray[2]).doubleValue();
+
+					++index;
+				}
+
+				for (int i = 0; i < b.length; i++) {
+					if (i == 0) {
+
+						cashflowEad[i] = -1 * cashflow[i];
+					}
+					else {
+
+						cashflowEad[i] = cashflowEad[i - 1] - cashflow[i] + (cashflowEad[i - 1] * rate[i] / 12);
+
+					}
+				}
+
+				Double result = cashflowEad[index - 1];
+
+				return result;
+			}
+		}, DataTypes.DoubleType);
+		
+		
+		// Register predictedDR (for AJMAN Bank Retail)
+		sqlContext.udf().register("predictedDR", new UDF1<WrappedArray<String>, Double >() {
+
+		        /** */
+		        private static final long serialVersionUID = 1L;
+
+		        @Override
+		        public Double call(WrappedArray<String> wCurrPredictionDate) throws Exception {
+		            
+		            String b[] = new String[wCurrPredictionDate.length()];
+		            wCurrPredictionDate.copyToArray(b);
+		            
+		            Double[] value = new Double[b.length];
+		            Double[] odr = new Double[b.length];
+		            Double[] predicted_pd = new Double[b.length];
+		            Double[] min_odr = new Double[b.length];
+			           
+		        	NormalDistribution nd = new NormalDistribution();
+	          		    
+		            double sum_product = 0.0;
+		            double[] product = new double[b.length];
+				
+		            int index = 0;
+		            
+		            for (int i = 0; i < b.length; i++) {
+		                String[] splitArray = b[i].split("\\|");                                                        
+		            /*  cashflowDate[index] = new SimpleDateFormat("yyyy-MM-dd").parse(splitArray[0]);*/
+		                odr[index] = Double.valueOf(splitArray[0]).doubleValue();
+		                predicted_pd[index] = Double.valueOf(splitArray[1]).doubleValue();
+		                min_odr[index] = Double.valueOf(splitArray[2]).doubleValue();
+			                
+		                ++index;
+		            }
+		            
+		            for(int i=0; i < b.length; i++) {
+		            	  if(i==0) {
+		            		  value[i] = nd.inverseCumulativeProbability(odr[i]);
+			          			  value[i] = value[i] + predicted_pd[i];
+			          			value[i] = nd.cumulativeProbability(value[i]);
+			          		value[i]=	value[i]>min_odr[i]?value[i]:min_odr[i];	
+		            	  }
+		            	  else {
+		            		  value[i] = nd.inverseCumulativeProbability(value[i-1]);
+		            		  value[i] = value[i] + predicted_pd[i];
+		            		  value[i] = nd.cumulativeProbability(value[i]);
+				          		value[i]=	value[i]>min_odr[i]?value[i]:min_odr[i];
+		            	  }
+		            }
+		            Double result = value[index-1];
+		            return result;
+		        }
+		    }, DataTypes.DoubleType);
+		
+	
+}
 
 	public long getSecondLargest(long[] a, int total) {
 		long temp;
 		for (int i = 0; i < total; i++) {
-			for (int j = i + 1; j < total; j++) {
+			for (int j = i+   1;j < total; j++) {
 				if (a[i] > a[j]) {
 					temp = a[i];
 					a[i] = a[j];
